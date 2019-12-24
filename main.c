@@ -501,7 +501,7 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
     }
      if(p_evt->type == BLE_NUS_EVT_TX_RDY)
     {
-      NRF_LOG_INFO("TX ready!");
+      //NRF_LOG_INFO("TX ready!");
 //      for (uint32_t i=0;i<100;i++)
 //      {
 //        rslt = bmi160_get_sensor_data(BMI160_ACCEL_SEL|BMI160_GYRO_SEL, &accel, &gyro, &sensor);
@@ -877,46 +877,72 @@ void bsp_event_handler(bsp_event_t event)
  */
 
 uint8_t ble_nus_large_data_send(uint8_t *data, uint16_t len){
-   static uint8_t *p_chuck;
-   static uint16_t i = 0;
-   static uint16_t cnt = 100;
-   static uint16_t send_length = BLE_NUS_MAX_DATA_LEN;
+   uint8_t *p_chuck;
+   uint16_t i = 0;
+   uint16_t cnt = 10000;
+   uint16_t send_length = BLE_NUS_MAX_DATA_LEN;
    uint32_t       err_code;
+   uint16_t    start_len = 5;
+   uint16_t    end_len = 3;
+   static char start_str[5] = "start";
+   static char end_str[3] = "end";
+
+   do{
+     err_code = ble_nus_data_send(&m_nus, start_str, &start_len, m_conn_handle);
+              if ((err_code != NRF_ERROR_INVALID_STATE) &&
+           (err_code != NRF_ERROR_RESOURCES) &&
+           (err_code != NRF_ERROR_NOT_FOUND))
+         {
+           APP_ERROR_CHECK(err_code);
+         } 
+   }while(err_code == NRF_ERROR_RESOURCES);
 
    p_chuck = data;
-  
    do{
-       do{
-         err_code = ble_nus_data_send(&m_nus, p_chuck, &send_length, m_conn_handle);
-         cnt = cnt - 1;
-       }while(err_code!=0 && cnt>0);
- 
-//       if ((err_code != NRF_ERROR_INVALID_STATE) &&
-//           (err_code != NRF_ERROR_RESOURCES) &&
-//           (err_code != NRF_ERROR_NOT_FOUND))
-//       {
-//           APP_ERROR_CHECK(err_code);
-//       }
-       NRF_LOG_INFO("chuck send error code is %d, current pointer %x, current data %x, base pointer %x", err_code, p_chuck, *p_chuck, data);
-       p_chuck = p_chuck + BLE_NUS_MAX_DATA_LEN;
-       if (p_chuck-data > len){
-          p_chuck = p_chuck - BLE_NUS_MAX_DATA_LEN;
-          send_length = data+len-p_chuck;
-          cnt = 100;
+       if ((uint16_t)(p_chuck-data)<= len-BLE_NUS_MAX_DATA_LEN){
+         do{
+           err_code = ble_nus_data_send(&m_nus, p_chuck, &send_length, m_conn_handle);
+           if ((err_code != NRF_ERROR_INVALID_STATE) &&
+             (err_code != NRF_ERROR_RESOURCES) &&
+             (err_code != NRF_ERROR_NOT_FOUND))
+           {
+             APP_ERROR_CHECK(err_code);
+           }  
+         }while(err_code == NRF_ERROR_RESOURCES);
+         NRF_LOG_INFO("normal, chuck send error code is %d, current pointer %x, current data %x, base pointer %x, diff%d", err_code, p_chuck, *p_chuck, data, (uint16_t)(p_chuck-data) );
+         NRF_LOG_FLUSH();
+       }
+      
+       else {
+          send_length = len + (uint16_t)(data-p_chuck);
+          NRF_LOG_FLUSH();
           do{
             err_code = ble_nus_data_send(&m_nus, p_chuck, &send_length, m_conn_handle);
-            cnt = cnt - 1;
-          }while(err_code!=0 && cnt>0);
-//          if ((err_code != NRF_ERROR_INVALID_STATE) &&
-//           (err_code != NRF_ERROR_RESOURCES) &&
-//           (err_code != NRF_ERROR_NOT_FOUND))
-//          {
-//           APP_ERROR_CHECK(err_code);
-//          }
+                     if ((err_code != NRF_ERROR_INVALID_STATE) &&
+           (err_code != NRF_ERROR_RESOURCES) &&
+           (err_code != NRF_ERROR_NOT_FOUND))
+         {
+           APP_ERROR_CHECK(err_code);
+         } 
+          }while(err_code == NRF_ERROR_RESOURCES);
+
+          NRF_LOG_INFO("exceed, chuck send error code is %d, current pointer %x, current data %x, base pointer %x, diff%d", err_code, p_chuck, *p_chuck, data, (uint16_t)(p_chuck-data) );
+          NRF_LOG_FLUSH();
           break;
        }
        cnt = cnt -1;
+       p_chuck = p_chuck + BLE_NUS_MAX_DATA_LEN;
+      
    } while (cnt > 0);
+   do{
+     err_code = ble_nus_data_send(&m_nus, end_str, &end_len, m_conn_handle);
+              if ((err_code != NRF_ERROR_INVALID_STATE) &&
+           (err_code != NRF_ERROR_RESOURCES) &&
+           (err_code != NRF_ERROR_NOT_FOUND))
+         {
+           APP_ERROR_CHECK(err_code);
+         } 
+   }while(err_code == NRF_ERROR_RESOURCES);
 
    return err_code;
 }
@@ -1068,8 +1094,8 @@ int main(void)
       
            //NRF_LOG_INFO("MLX90640 FRAME data %x is 0x%x,%x, subpage %d", 0, frame[0]>>8, frame[0]&0xFF, MLX90640_GetSubPageNumber(frame));
            err_code = ble_nus_large_data_send(frame, FRAME_LEN);
-           NRF_LOG_INFO("ble send error code is %d",err_code);
-           NRF_LOG_FLUSH();
+           //NRF_LOG_INFO("ble send error code is %d",err_code);
+           //NRF_LOG_FLUSH();
           } 
           break;
         } else
