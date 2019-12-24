@@ -120,6 +120,7 @@ BLE_NUS_DEF(m_nus, NRF_SDH_BLE_TOTAL_LINK_COUNT);                               
 NRF_BLE_GATT_DEF(m_gatt);                                                           /**< GATT module instance. */
 NRF_BLE_QWR_DEF(m_qwr);                                                             /**< Context for the Queued Write module.*/
 BLE_ADVERTISING_DEF(m_advertising);                                                 /**< Advertising module instance. */
+uint32_t cnt = 0;
 
 static uint16_t   m_conn_handle          = BLE_CONN_HANDLE_INVALID;                 /**< Handle of the current connection. */
 static uint16_t   m_ble_nus_max_data_len = BLE_GATT_ATT_MTU_DEFAULT - 3;            /**< Maximum length of data (in bytes) that can be transmitted to the peer by the Nordic UART service module. */
@@ -137,6 +138,11 @@ static volatile bool m_xfer_done = false;
 static const nrf_drv_twi_t m_twi = NRF_DRV_TWI_INSTANCE(TWI_INSTANCE_ID);
 struct mlx90640_dev camera;
 
+#define EEDATA_LEN 832
+#define FRAME_LEN 1668
+static uint16_t eeData[EEDATA_LEN] = {0};
+static uint8_t frame[FRAME_LEN] = {0xff};
+static uint8_t ble_tx_ready = 0;
 //static uint8_t m_sample;
 //struct bmi160_dev sensor;
 //struct bmi160_sensor_data accel;
@@ -223,6 +229,26 @@ int8_t user_i2c_read16(uint8_t dev_id, uint16_t reg_addr, uint16_t *reg_data, ui
     return err_code;
 }
 
+int8_t user_i2c_read8(uint8_t dev_id, uint16_t reg_addr, uint8_t *reg_data, uint16_t len)
+{
+    ret_code_t err_code; /* Return 0 for Success, non-zero for failure */
+    uint8_t cmd[2] = {0,0};
+    cmd[0] = reg_addr >> 8;
+    cmd[1] = reg_addr & 0x00FF;
+    m_xfer_done = false;
+    err_code = nrf_drv_twi_tx(&m_twi, dev_id, cmd, 2, true);
+    APP_ERROR_CHECK(err_code);
+    while ( m_xfer_done == false);
+  
+    m_xfer_done = false; 
+    err_code = nrf_drv_twi_rx(&m_twi, dev_id, reg_data, len);
+    APP_ERROR_CHECK(err_code);
+    while (m_xfer_done == false);
+    return err_code;
+}
+
+
+
 int8_t user_i2c_write16(uint8_t dev_id, uint16_t reg_addr, uint16_t reg_data)
 {
     ret_code_t err_code; /* Return 0 for Success, non-zero for failure */
@@ -266,7 +292,7 @@ __STATIC_INLINE void data_handler()
     //NRF_LOG_INFO("Ready to send data over BLE NUS");
     //do{
     //err_code = ble_nus_data_send(&m_nus, data_array, &bmi160_length, m_conn_handle);
-    //NRF_LOG_INFO("error code is %d, Acc: %d %d %d ", err_code, accel.x, accel.y, accel.z);
+    cnt = cnt+1;
     //if ((err_code != NRF_ERROR_INVALID_STATE) &&
      //   (err_code != NRF_ERROR_RESOURCES) &&
      //   (err_code != NRF_ERROR_NOT_FOUND))
@@ -284,10 +310,11 @@ void twi_handler(nrf_drv_twi_evt_t const * p_event, void * p_context)
     switch (p_event->type)
     {
         case NRF_DRV_TWI_EVT_DONE:
-            //if (p_event->xfer_desc.type == NRF_DRV_TWI_XFER_RX)
-            //{
+            if (p_event->xfer_desc.type == NRF_DRV_TWI_XFER_RX)
+            {
                 //data_handler();
-           // }
+                //NRF_LOG_INFO("Ready to send data over BLE NUS with primary length %d, secondary length %d, pointer %x", p_event->xfer_desc.primary_length, p_event->xfer_desc.secondary_length, p_event->xfer_desc.p_primary_buf);
+            }
             m_xfer_done = true;
             break;
         default:
@@ -353,14 +380,21 @@ void twi_init (void)
  */
 static void MLX90640_init(void)
 {
+    ret_code_t err_code=0;
     camera.id = MLX90640_I2C_ADDR;
     camera.read = user_i2c_read16;
+    camera.read8 = user_i2c_read8;
     camera.write = user_i2c_write16;
     camera.delay_ms = nrf_delay_ms;
 
-
+    uint16_t controlRegister=0;
+    err_code = MLX90640_I2CWrite(&camera, 0x800D, 0x1901);
     /* Set the sensor configuration */
     MLX90640_SetRefreshRate(&camera,0x05);
+    err_code = MLX90640_I2CRead(&camera, 0x800D, 1, &controlRegister);
+    NRF_LOG_INFO("MLX90640 control data %x is 0x%x,%x", 0, controlRegister>>8, controlRegister&0x00FF);
+    NRF_LOG_FLUSH();
+    err_code = MLX90640_DumpEE(&camera, eeData);
 }
 
 /**@brief Function for assert macro callback.
@@ -478,6 +512,7 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
     if(p_evt->type == BLE_NUS_EVT_COMM_STARTED)
     {
       NRF_LOG_INFO("Notification enabled!");
+      ble_tx_ready = 1;
 //      for (uint32_t i=0;i<100;i++)
 //      {
 //        rslt = bmi160_get_sensor_data(BMI160_ACCEL_SEL|BMI160_GYRO_SEL, &accel, &gyro, &sensor);
@@ -717,6 +752,7 @@ void gatt_evt_handler(nrf_ble_gatt_t * p_gatt, nrf_ble_gatt_evt_t const * p_evt)
     {
         m_ble_nus_max_data_len = p_evt->params.att_mtu_effective - OPCODE_LENGTH - HANDLE_LENGTH;
         NRF_LOG_INFO("Data len is set to 0x%X(%d)", m_ble_nus_max_data_len, m_ble_nus_max_data_len);
+
     }
     NRF_LOG_DEBUG("ATT MTU exchange completed. central 0x%x peripheral 0x%x",
                   p_gatt->att_mtu_desired_central,
@@ -837,38 +873,53 @@ void bsp_event_handler(bsp_event_t event)
 //}
 /**@snippet [Handling the data received over UART] */
 
-
-/**@brief  Function for initializing the UART module.
+/**@brief Send large chunk of data using nus service
  */
-/**@snippet [UART Initialization] */
-//static void uart_init(void)
-//{
-//    uint32_t                     err_code;
-//    app_uart_comm_params_t const comm_params =
-//    {
-//        .rx_pin_no    = RX_PIN_NUMBER,
-//        .tx_pin_no    = TX_PIN_NUMBER,
-//        .rts_pin_no   = RTS_PIN_NUMBER,
-//        .cts_pin_no   = CTS_PIN_NUMBER,
-//        .flow_control = APP_UART_FLOW_CONTROL_DISABLED,
-//        .use_parity   = false,
-//#if defined (UART_PRESENT)
-//        .baud_rate    = NRF_UART_BAUDRATE_115200
-//#else
-//        .baud_rate    = NRF_UARTE_BAUDRATE_115200
-//#endif
-//    };
-//
-//    APP_UART_FIFO_INIT(&comm_params,
-//                       UART_RX_BUF_SIZE,
-//                       UART_TX_BUF_SIZE,
-//                       uart_event_handle,
-//                       APP_IRQ_PRIORITY_LOWEST,
-//                       err_code);
-//    APP_ERROR_CHECK(err_code);
-//}
-/**@snippet [UART Initialization] */
 
+uint8_t ble_nus_large_data_send(uint8_t *data, uint16_t len){
+   static uint8_t *p_chuck;
+   static uint16_t i = 0;
+   static uint16_t cnt = 100;
+   static uint16_t send_length = BLE_NUS_MAX_DATA_LEN;
+   uint32_t       err_code;
+
+   p_chuck = data;
+  
+   do{
+       do{
+         err_code = ble_nus_data_send(&m_nus, p_chuck, &send_length, m_conn_handle);
+         cnt = cnt - 1;
+       }while(err_code!=0 && cnt>0);
+ 
+//       if ((err_code != NRF_ERROR_INVALID_STATE) &&
+//           (err_code != NRF_ERROR_RESOURCES) &&
+//           (err_code != NRF_ERROR_NOT_FOUND))
+//       {
+//           APP_ERROR_CHECK(err_code);
+//       }
+       NRF_LOG_INFO("chuck send error code is %d, current pointer %x, current data %x, base pointer %x", err_code, p_chuck, *p_chuck, data);
+       p_chuck = p_chuck + BLE_NUS_MAX_DATA_LEN;
+       if (p_chuck-data > len){
+          p_chuck = p_chuck - BLE_NUS_MAX_DATA_LEN;
+          send_length = data+len-p_chuck;
+          cnt = 100;
+          do{
+            err_code = ble_nus_data_send(&m_nus, p_chuck, &send_length, m_conn_handle);
+            cnt = cnt - 1;
+          }while(err_code!=0 && cnt>0);
+//          if ((err_code != NRF_ERROR_INVALID_STATE) &&
+//           (err_code != NRF_ERROR_RESOURCES) &&
+//           (err_code != NRF_ERROR_NOT_FOUND))
+//          {
+//           APP_ERROR_CHECK(err_code);
+//          }
+          break;
+       }
+       cnt = cnt -1;
+   } while (cnt > 0);
+
+   return err_code;
+}
 
 /**@brief Function for initializing the Advertising functionality.
  */
@@ -978,33 +1029,14 @@ int main(void)
     // read MLX90640 chip id
     MLX90640_init();
     //test 
-     uint16_t controlRegister=0;
-     //err_code = MLX90640_I2CWrite(&camera, 0x800D, 0x1901);
-     err_code = MLX90640_I2CRead(&camera, 0x800D, 1, &controlRegister);
-     //for(uint16_t i=0; i<16;i++){
-     NRF_LOG_INFO("MLX90640 control data %x is 0x%x,%x", 0, controlRegister>>8, controlRegister&0x00FF);
-    //} 
-     uint16_t statusRegister=0;
-     err_code = MLX90640_I2CRead(&camera, 0x8000, 1, &statusRegister);
-     NRF_LOG_INFO("err_code %d, statusreg 0x%x,%x", err_code, statusRegister>>8, statusRegister&0x00FF); 
 
-        NRF_LOG_FLUSH();
+    uint16_t statusRegister=0;
+    err_code = MLX90640_I2CRead(&camera, 0x8000, 1, &statusRegister);
+    NRF_LOG_INFO("err_code %d, statusreg 0x%x,%x", err_code, statusRegister>>8, statusRegister&0x00FF); 
 
-    static uint16_t eeData[832] = {0};
-    static uint16_t frame[834] = {0};
-    err_code = MLX90640_DumpEE(&camera, eeData);
-    //NRF_LOG_INFO("err_code %d", err_code); 
-    //for(uint32_t i=0; i<5;i++){
-     //  NRF_LOG_INFO("MLX90640 EEPROM data %x is 0x%x", i, eeData[i]);
-    //} 
-    //NRF_LOG_FLUSH();
-    for(uint16_t i=0; i<20;i++){
-      err_code = MLX90640_GetFrameData(&camera, frame);
-    //MLX90640_I2CRead(&camera, 0x2400, 832, chip_id);
-    
-       NRF_LOG_INFO("MLX90640 FRAME data %x is 0x%x,%x, subpage %d", 0, frame[0]>>8, frame[0]&0xFF, MLX90640_GetSubPageNumber(frame));
-       NRF_LOG_FLUSH();
-    } 
+    NRF_LOG_FLUSH();
+
+   
 
     //BLE stack
     ble_stack_init();
@@ -1020,10 +1052,32 @@ int main(void)
 
     NRF_LOG_FLUSH();
     // Enter main loop.
+    //uint16_t lll= 244;
     for (;;)
     {
         //rslt = bmi160_get_sensor_data(BMI160_ACCEL_SEL|BMI160_GYRO_SEL, &accel, &gyro, &sensor);
         //NRF_LOG_INFO("accx %d, accy %d, accz %d, gyrox %d, gyroy %d, gyroz %d", accel.x, accel.y, accel.z, gyro.x, gyro.y, gyro.z);
+        
+        if (m_conn_handle != BLE_CONN_HANDLE_INVALID && ble_tx_ready == 1)
+        {
+          /* BLE is connected. Do something. */
+          for(uint16_t i=0; i<5;i++){
+          err_code = MLX90640_GetFrameData8(&camera, frame);
+          //MLX90640_I2CRead(&camera, 0x2400, 832, chip_id);
+          //err_code = ble_nus_data_send(&m_nus, frame, &lll, m_conn_handle);
+      
+           //NRF_LOG_INFO("MLX90640 FRAME data %x is 0x%x,%x, subpage %d", 0, frame[0]>>8, frame[0]&0xFF, MLX90640_GetSubPageNumber(frame));
+           err_code = ble_nus_large_data_send(frame, FRAME_LEN);
+           NRF_LOG_INFO("ble send error code is %d",err_code);
+           NRF_LOG_FLUSH();
+          } 
+          break;
+        } else
+        {
+           /* BLE is not connected. Do something. */
+           
+        }
+        
         idle_state_handle();
         
     }
