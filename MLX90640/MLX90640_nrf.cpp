@@ -59,6 +59,12 @@ int MLX90640_DumpEE(struct mlx90640_dev *dev, uint16_t *eeData)
      return MLX90640_I2CRead(dev, 0x2400, 832, eeData);
 }
 
+int MLX90640_DumpEE8(struct mlx90640_dev *dev, uint8_t *eeData)
+{
+     return MLX90640_I2CRead8(dev, 0x2400, 1664, eeData);
+}
+
+
 int MLX90640_GetFrameData(struct mlx90640_dev *dev, uint16_t *frameData)
 {
     uint16_t dataReady = 1;
@@ -176,7 +182,7 @@ int MLX90640_GetFrameData8(struct mlx90640_dev *dev, uint8_t *frameData)
         return error;
     }
     
-    return frameData[833];    
+    return frameData[1667];    
 }
 
 

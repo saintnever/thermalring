@@ -88,6 +88,7 @@ struct mlx90640_dev {
     int MLX90640_I2CWrite(const struct mlx90640_dev *dev, uint16_t reg_addr, uint16_t data);
     //int mlx90640_get_regs(uint8_t reg_addr, uint8_t *data, uint16_t len, const struct mlx90640_dev *dev);
     int MLX90640_DumpEE(struct mlx90640_dev *dev, uint16_t *eeData);
+    int MLX90640_DumpEE8(struct mlx90640_dev *dev, uint8_t *eeData);
     int MLX90640_GetFrameData(struct mlx90640_dev *dev, uint16_t *frameData);
     int MLX90640_GetFrameData8(struct mlx90640_dev *dev, uint8_t *frameData);
     int MLX90640_ExtractParameters(uint16_t *eeData,  const paramsMLX90640 *params);

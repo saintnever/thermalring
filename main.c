@@ -138,11 +138,12 @@ static volatile bool m_xfer_done = false;
 static const nrf_drv_twi_t m_twi = NRF_DRV_TWI_INSTANCE(TWI_INSTANCE_ID);
 struct mlx90640_dev camera;
 
-#define EEDATA_LEN 832
+#define EEDATA_LEN 1664
 #define FRAME_LEN 1668
-static uint16_t eeData[EEDATA_LEN] = {0};
-static uint8_t frame[FRAME_LEN] = {0xff};
+static uint8_t eeData[EEDATA_LEN] = {0};
+static uint8_t frame[FRAME_LEN] = {0};
 static uint8_t ble_tx_ready = 0;
+static uint8_t eedata_send = 0;
 //static uint8_t m_sample;
 //struct bmi160_dev sensor;
 //struct bmi160_sensor_data accel;
@@ -390,11 +391,10 @@ static void MLX90640_init(void)
     uint16_t controlRegister=0;
     err_code = MLX90640_I2CWrite(&camera, 0x800D, 0x1901);
     /* Set the sensor configuration */
-    MLX90640_SetRefreshRate(&camera,0x05);
-    err_code = MLX90640_I2CRead(&camera, 0x800D, 1, &controlRegister);
+    MLX90640_SetRefreshRate(&camera,0x04);
     NRF_LOG_INFO("MLX90640 control data %x is 0x%x,%x", 0, controlRegister>>8, controlRegister&0x00FF);
     NRF_LOG_FLUSH();
-    err_code = MLX90640_DumpEE(&camera, eeData);
+    err_code = MLX90640_DumpEE8(&camera, eeData);
 }
 
 /**@brief Function for assert macro callback.
@@ -479,7 +479,16 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
     {
         uint32_t err_code;
 
-        NRF_LOG_DEBUG("Received data from BLE NUS. Doing Nothing");
+        NRF_LOG_INFO("Received data from BLE NUS.");
+        if (p_evt->params.rx_data.length == 5){
+            eedata_send = 0;
+            NRF_LOG_INFO("ready to send eeData");
+        }
+        NRF_LOG_FLUSH();
+        //for(uint32_t i=0; i<p_evt->params.rx_data.length;i++)
+        //{
+          
+        //}
 //        NRF_LOG_HEXDUMP_DEBUG(p_evt->params.rx_data.p_data, p_evt->params.rx_data.length);
 //
 //        for (uint32_t i = 0; i < p_evt->params.rx_data.length; i++)
@@ -670,6 +679,7 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
 
         case BLE_GAP_EVT_DISCONNECTED:
             NRF_LOG_INFO("Disconnected");
+            eedata_send = 0;
             // LED indication will be changed when advertising starts.
             m_conn_handle = BLE_CONN_HANDLE_INVALID;
             break;
@@ -700,6 +710,7 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
 
         case BLE_GATTC_EVT_TIMEOUT:
             // Disconnect on GATT Client timeout event.
+            eedata_send = 0;
             err_code = sd_ble_gap_disconnect(p_ble_evt->evt.gattc_evt.conn_handle,
                                              BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION);
             APP_ERROR_CHECK(err_code);
@@ -707,6 +718,7 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
 
         case BLE_GATTS_EVT_TIMEOUT:
             // Disconnect on GATT Server timeout event.
+            eedata_send = 0;
             err_code = sd_ble_gap_disconnect(p_ble_evt->evt.gatts_evt.conn_handle,
                                              BLE_HCI_REMOTE_USER_TERMINATED_CONNECTION);
             APP_ERROR_CHECK(err_code);
@@ -882,10 +894,14 @@ uint8_t ble_nus_large_data_send(uint8_t *data, uint16_t len){
    uint16_t cnt = 10000;
    uint16_t send_length = BLE_NUS_MAX_DATA_LEN;
    uint32_t       err_code;
-   uint16_t    start_len = 5;
-   uint16_t    end_len = 3;
-   static char start_str[5] = "start";
-   static char end_str[3] = "end";
+   uint16_t    start_len = 4;
+   uint16_t    end_len = 2;
+   static uint8_t start_str[4];
+   static uint8_t end_str[2] = {0xA5, 0xA5};
+   start_str[0] = 0x5A;
+   start_str[1] = 0x5A;
+   start_str[2] = (uint8_t)(len>>8);
+   start_str[3] = (uint8_t)(len&0xFF);
 
    do{
      err_code = ble_nus_data_send(&m_nus, start_str, &start_len, m_conn_handle);
@@ -909,7 +925,7 @@ uint8_t ble_nus_large_data_send(uint8_t *data, uint16_t len){
              APP_ERROR_CHECK(err_code);
            }  
          }while(err_code == NRF_ERROR_RESOURCES);
-         NRF_LOG_INFO("normal, chuck send error code is %d, current pointer %x, current data %x, base pointer %x, diff%d", err_code, p_chuck, *p_chuck, data, (uint16_t)(p_chuck-data) );
+         //NRF_LOG_INFO("normal, chuck send error code is %d, current pointer %x, current data %x, base pointer %x, diff%d", err_code, p_chuck, *p_chuck, data, (uint16_t)(p_chuck-data) );
          NRF_LOG_FLUSH();
        }
       
@@ -926,7 +942,7 @@ uint8_t ble_nus_large_data_send(uint8_t *data, uint16_t len){
          } 
           }while(err_code == NRF_ERROR_RESOURCES);
 
-          NRF_LOG_INFO("exceed, chuck send error code is %d, current pointer %x, current data %x, base pointer %x, diff%d", err_code, p_chuck, *p_chuck, data, (uint16_t)(p_chuck-data) );
+          //NRF_LOG_INFO("exceed, chuck send error code is %d, current pointer %x, current data %x, base pointer %x, diff%d", err_code, p_chuck, *p_chuck, data, (uint16_t)(p_chuck-data) );
           NRF_LOG_FLUSH();
           break;
        }
@@ -934,15 +950,15 @@ uint8_t ble_nus_large_data_send(uint8_t *data, uint16_t len){
        p_chuck = p_chuck + BLE_NUS_MAX_DATA_LEN;
       
    } while (cnt > 0);
-   do{
-     err_code = ble_nus_data_send(&m_nus, end_str, &end_len, m_conn_handle);
-              if ((err_code != NRF_ERROR_INVALID_STATE) &&
-           (err_code != NRF_ERROR_RESOURCES) &&
-           (err_code != NRF_ERROR_NOT_FOUND))
-         {
-           APP_ERROR_CHECK(err_code);
-         } 
-   }while(err_code == NRF_ERROR_RESOURCES);
+//   do{
+//     err_code = ble_nus_data_send(&m_nus, end_str, &end_len, m_conn_handle);
+//              if ((err_code != NRF_ERROR_INVALID_STATE) &&
+//           (err_code != NRF_ERROR_RESOURCES) &&
+//           (err_code != NRF_ERROR_NOT_FOUND))
+//         {
+//           APP_ERROR_CHECK(err_code);
+//         } 
+//   }while(err_code == NRF_ERROR_RESOURCES);
 
    return err_code;
 }
@@ -1042,6 +1058,8 @@ int main(void)
 {
     bool erase_bonds;
     ret_code_t err_code;
+    uint8_t pagenum;
+
     // Initialize.
     log_init();
     twi_init();
@@ -1087,20 +1105,30 @@ int main(void)
         if (m_conn_handle != BLE_CONN_HANDLE_INVALID && ble_tx_ready == 1)
         {
           /* BLE is connected. Do something. */
-          for(uint16_t i=0; i<5;i++){
-          err_code = MLX90640_GetFrameData8(&camera, frame);
-          //MLX90640_I2CRead(&camera, 0x2400, 832, chip_id);
-          //err_code = ble_nus_data_send(&m_nus, frame, &lll, m_conn_handle);
-      
-           //NRF_LOG_INFO("MLX90640 FRAME data %x is 0x%x,%x, subpage %d", 0, frame[0]>>8, frame[0]&0xFF, MLX90640_GetSubPageNumber(frame));
-           err_code = ble_nus_large_data_send(frame, FRAME_LEN);
-           //NRF_LOG_INFO("ble send error code is %d",err_code);
-           //NRF_LOG_FLUSH();
-          } 
-          break;
-        } else
+          //send eedata first
+          if (eedata_send == 0){
+             err_code = ble_nus_large_data_send(eeData, EEDATA_LEN);
+             if(err_code == 0){
+                NRF_LOG_INFO("MLX90640 eeData sent");
+                eedata_send = 1;
+             }
+          }
+
+          if (eedata_send == 1){
+             pagenum = MLX90640_GetFrameData8(&camera, frame);
+             
+             if (pagenum == 0){
+                err_code = ble_nus_large_data_send(frame, FRAME_LEN);
+                if(err_code == 0){
+                  NRF_LOG_INFO("MLX90640 FRAME data subpage %d", pagenum);
+                }
+             }
+           }
+        } 
+        else
         {
            /* BLE is not connected. Do something. */
+           eedata_send = 0;
            
         }
         
