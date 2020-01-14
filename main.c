@@ -97,8 +97,8 @@
 
 #define APP_ADV_DURATION                18000                                           /**< The advertising duration (180 seconds) in units of 10 milliseconds. */
 
-#define MIN_CONN_INTERVAL               MSEC_TO_UNITS(20, UNIT_1_25_MS)             /**< Minimum acceptable connection interval (20 ms), Connection interval uses 1.25 ms units. */
-#define MAX_CONN_INTERVAL               MSEC_TO_UNITS(75, UNIT_1_25_MS)             /**< Maximum acceptable connection interval (75 ms), Connection interval uses 1.25 ms units. */
+#define MIN_CONN_INTERVAL               MSEC_TO_UNITS(7.5, UNIT_1_25_MS)             /**< Minimum acceptable connection interval (20 ms), Connection interval uses 1.25 ms units. */
+#define MAX_CONN_INTERVAL               MSEC_TO_UNITS(15, UNIT_1_25_MS)             /**< Maximum acceptable connection interval (75 ms), Connection interval uses 1.25 ms units. */
 #define SLAVE_LATENCY                   0                                           /**< Slave latency. */
 #define CONN_SUP_TIMEOUT                MSEC_TO_UNITS(4000, UNIT_10_MS)             /**< Connection supervisory timeout (4 seconds), Supervision Timeout uses 10 ms units. */
 #define FIRST_CONN_PARAMS_UPDATE_DELAY  APP_TIMER_TICKS(5000)                       /**< Time from initiating event (connect or start of notification) to first time sd_ble_gap_conn_param_update is called (5 seconds). */
@@ -391,8 +391,9 @@ static void MLX90640_init(void)
     uint16_t controlRegister=0;
     err_code = MLX90640_I2CWrite(&camera, 0x800D, 0x1901);
     /* Set the sensor configuration */
-    MLX90640_SetRefreshRate(&camera,0x04);
-    NRF_LOG_INFO("MLX90640 control data %x is 0x%x,%x", 0, controlRegister>>8, controlRegister&0x00FF);
+    MLX90640_SetRefreshRate(&camera,0x05);
+    err_code = MLX90640_I2CRead(&camera, 0x800D, 1, &controlRegister);
+    NRF_LOG_INFO("err_code %d, controlreg 0x%x,%x", err_code, controlRegister>>8, controlRegister&0x00FF); 
     NRF_LOG_FLUSH();
     err_code = MLX90640_DumpEE8(&camera, eeData);
 }
@@ -672,9 +673,19 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
             //err_code = bsp_indication_set(BSP_INDICATE_CONNECTED);
             //APP_ERROR_CHECK(err_code);
             m_conn_handle = p_ble_evt->evt.gap_evt.conn_handle;
+
             err_code = nrf_ble_qwr_conn_handle_assign(&m_qwr, m_conn_handle);
 
             APP_ERROR_CHECK(err_code);
+            ble_gap_phys_t const phys =
+            {
+              .rx_phys = BLE_GAP_PHY_2MBPS ,
+              .tx_phys = BLE_GAP_PHY_2MBPS ,
+            };
+            err_code = sd_ble_gap_phy_update(p_ble_evt->evt.gap_evt.conn_handle, &phys);
+            if (err_code == 0){
+               NRF_LOG_INFO("2MBPS Enabled!");
+            }
             break;
 
         case BLE_GAP_EVT_DISCONNECTED:
@@ -686,7 +697,7 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
 
         case BLE_GAP_EVT_PHY_UPDATE_REQUEST:
         {
-            NRF_LOG_DEBUG("PHY update request.");
+            NRF_LOG_INFO("PHY update request.");
             ble_gap_phys_t const phys =
             {
                 .rx_phys = BLE_GAP_PHY_AUTO,
@@ -975,6 +986,7 @@ static void advertising_init(void)
     init.advdata.name_type          = BLE_ADVDATA_FULL_NAME;
     init.advdata.include_appearance = false;
     init.advdata.flags              = BLE_GAP_ADV_FLAGS_LE_ONLY_LIMITED_DISC_MODE;
+ 
 
     init.srdata.uuids_complete.uuid_cnt = sizeof(m_adv_uuids) / sizeof(m_adv_uuids[0]);
     init.srdata.uuids_complete.p_uuids  = m_adv_uuids;
@@ -983,6 +995,9 @@ static void advertising_init(void)
     init.config.ble_adv_fast_interval = APP_ADV_INTERVAL;
     init.config.ble_adv_fast_timeout  = APP_ADV_DURATION;
     init.evt_handler = on_adv_evt;
+    //init.config.ble_adv_extended_enabled = true;
+    //init.config.ble_adv_primary_phy      = BLE_GAP_PHY_2MBPS;
+    //init.config.ble_adv_secondary_phy    = BLE_GAP_PHY_2MBPS;
 
     err_code = ble_advertising_init(&m_advertising, &init);
     APP_ERROR_CHECK(err_code);
@@ -1059,14 +1074,16 @@ int main(void)
     bool erase_bonds;
     ret_code_t err_code;
     uint8_t pagenum;
-
+    uint32_t tick1 = 0;
+    uint32_t tick2 = 0;
+    uint32_t tdiff = 0;
     // Initialize.
     log_init();
     twi_init();
     timers_init();
     NRF_LOG_INFO("Debug logging for UART over RTT started.timer");
     //buttons_leds_init(&erase_bonds);
-    power_management_init();
+    //power_management_init();
     // I2C BMI160 Initialize
     //IMU_init();
     NRF_LOG_INFO("Debug logging for UART over RTT started.imu");
@@ -1094,11 +1111,14 @@ int main(void)
     advertising_start();
     NRF_LOG_INFO("Debug logging for UART over RTT started.adv");
 
-    NRF_LOG_FLUSH();
+   // NRF_LOG_FLUSH();
     // Enter main loop.
     //uint16_t lll= 244;
     for (;;)
     {
+     //NRF_LOG_INFO("in loop1");
+
+    //NRF_LOG_FLUSH();
         //rslt = bmi160_get_sensor_data(BMI160_ACCEL_SEL|BMI160_GYRO_SEL, &accel, &gyro, &sensor);
         //NRF_LOG_INFO("accx %d, accy %d, accz %d, gyrox %d, gyroy %d, gyroz %d", accel.x, accel.y, accel.z, gyro.x, gyro.y, gyro.z);
         
@@ -1118,9 +1138,12 @@ int main(void)
              pagenum = MLX90640_GetFrameData8(&camera, frame);
              
              if (pagenum == 0){
+                tick1 = app_timer_cnt_get();
                 err_code = ble_nus_large_data_send(frame, FRAME_LEN);
                 if(err_code == 0){
-                  NRF_LOG_INFO("MLX90640 FRAME data subpage %d", pagenum);
+                  tick2 = app_timer_cnt_get();
+                  tdiff = app_timer_cnt_diff_compute(tick2, tick1);
+                  NRF_LOG_INFO("MLX90640 FRAME data subpage %d, tdiff %d", pagenum, tdiff);
                 }
              }
            }
@@ -1132,7 +1155,7 @@ int main(void)
            
         }
         
-        idle_state_handle();
+        //idle_state_handle();
         
     }
 }

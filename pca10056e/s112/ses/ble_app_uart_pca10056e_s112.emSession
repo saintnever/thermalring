@@ -2,7 +2,7 @@
 <session>
  <Bookmarks/>
  <Breakpoints groups="Breakpoints" active_group="Breakpoints">
-  <BreakpointListItem trigger="" line="1003" counter="0" hardwareBreakpoint="" isFunctionBreakpoint="false" action="" expression="" group="Breakpoints" type="Breakpoint" state="2" filename="../../../main.c" useHWbreakpoint="false"/>
+  <BreakpointListItem trigger="" line="1019" counter="0" hardwareBreakpoint="" isFunctionBreakpoint="false" action="" expression="" group="Breakpoints" type="Breakpoint" state="2" filename="../../../main.c" useHWbreakpoint="false"/>
  </Breakpoints>
  <ExecutionProfileWindow/>
  <FrameBufferWindow>
@@ -24,7 +24,6 @@
   <ProjectSessionItem path="ble_app_uart_pca10056e_s112"/>
   <ProjectSessionItem path="ble_app_uart_pca10056e_s112;ble_app_uart_pca10056e_s112"/>
   <ProjectSessionItem path="ble_app_uart_pca10056e_s112;ble_app_uart_pca10056e_s112;Application"/>
-  <ProjectSessionItem path="ble_app_uart_pca10056e_s112;ble_app_uart_pca10056e_s112;BMI160"/>
   <ProjectSessionItem path="ble_app_uart_pca10056e_s112;ble_app_uart_pca10056e_s112;Board Definition"/>
   <ProjectSessionItem path="ble_app_uart_pca10056e_s112;ble_app_uart_pca10056e_s112;MLX90640"/>
   <ProjectSessionItem path="ble_app_uart_pca10056e_s112;ble_app_uart_pca10056e_s112;nRF_BLE"/>
@@ -53,8 +52,8 @@
  </TraceWindow>
  <Watch1>
   <Watches active="1" update="Never">
-   <Watchpoint expression="chip_id" name="chip_id" radix="16" linenumber="1001" filename="../../../main.c"/>
-   <Watchpoint expression="len" name="len" radix="-1" linenumber="209" filename="../../../main.c"/>
+   <Watchpoint expression="chip_id" name="chip_id" radix="16" linenumber="1017" filename="../../../main.c"/>
+   <Watchpoint expression="len" name="len" radix="-1" linenumber="210" filename="../../../main.c"/>
   </Watches>
  </Watch1>
  <Watch2>
@@ -67,12 +66,13 @@
   <Watches active="0" update="Never"/>
  </Watch4>
  <Files>
-  <SessionOpenFile windowGroup="DockEditLeft" x="24" y="990" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../main.c" selected="1" top="951" codecName="Default"/>
-  <SessionOpenFile windowGroup="DockEditLeft" x="7" y="1355" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/BMI160/bmi160.c" selected="0" top="1322" codecName="Default"/>
-  <SessionOpenFile windowGroup="DockEditLeft" x="12" y="49" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/MLX90640/MLX90640_nrf.cpp" selected="0" top="21" codecName="Default"/>
-  <SessionOpenFile windowGroup="DockEditLeft" x="20" y="73" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/MLX90640/MLX90640_nrf.h" selected="0" top="36" codecName="Default"/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="8" y="890" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../main.c" selected="0" top="899" codecName="Default"/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="1355" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/BMI160/bmi160.c" selected="0" top="1322" codecName="Default"/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="2" y="44" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/MLX90640/MLX90640_nrf.cpp" selected="1" top="0" codecName="Default"/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="33" y="106" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/MLX90640/MLX90640_nrf.h" selected="0" top="60" codecName="Default"/>
   <SessionOpenFile windowGroup="DockEditLeft" x="0" y="0" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/BMI160/bmi160.h" selected="0" top="38" codecName="Default"/>
   <SessionOpenFile windowGroup="DockEditLeft" x="0" y="1458" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../components/BMI160/bmi160_defs.h" selected="0" top="1399" codecName="Default"/>
+  <SessionOpenFile windowGroup="DockEditLeft" x="0" y="134" useTextEdit="1" useBinaryEdit="0" left="0" path="../../../../../../modules/nrfx/hal/nrf_twi.h" selected="0" top="101" codecName="Default"/>
  </Files>
  <ARMCrossStudioWindow activeProject="ble_app_uart_pca10056e_s112" fileDialogDefaultFilter="*.c" autoConnectTarget="J-Link" buildConfiguration="Release" sessionSettings="" debugSearchFileMap="" fileDialogInitialDirectory="C:/Users/ztxse/Documents/projects/nRF5_SDK_15.3.0_59ac345/components/BMI160" debugSearchPath="" autoConnectCapabilities="3711"/>
 </session>
